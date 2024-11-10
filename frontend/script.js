@@ -14,6 +14,23 @@ const loadingNotice = document.getElementById('loading-notice');
 let isRecording = false;
 let isProcessing = false;
 let hasPendingWork = false;
+let isSpeaking = false;
+let synthesis = window.speechSynthesis;
+
+// Add utility function for button state management
+function setControlsState(disabled) {
+    speakBtn.disabled = disabled;
+    playBtn.disabled = disabled;
+    newConvBtn.disabled = disabled;
+    inputLang.disabled = disabled;
+    outputLang.disabled = disabled;
+}
+
+// Function to check voice availability
+function getVoiceForLanguage(langCode) {
+    const voices = synthesis.getVoices();
+    return voices.find(voice => voice.lang.startsWith(langCode)) || voices[0];
+}
 
 function setProcessingState(processing) {
     // Only allow changing processing state when not recording
@@ -23,6 +40,15 @@ function setProcessingState(processing) {
         newConvBtn.disabled = processing;
         loadingNotice.style.display = processing ? 'block' : 'none';
     }
+}
+
+// Updated button disable function
+function setButtonsState(disabled) {
+    speakBtn.disabled = disabled;
+    playBtn.disabled = disabled;
+    newConvBtn.disabled = disabled;
+    inputLang.disabled = disabled;
+    outputLang.disabled = disabled;
 }
 
 // Add to script.js
@@ -209,19 +235,67 @@ function translateText(text) {
     });
 }
 
-// Function to play translated text as audio
+// Updated play button handler
 playBtn.addEventListener('click', () => {
-    const text = translatedText.textContent;
-    if (text === "") return;
+    // Guard clauses
+    if (!synthesis) {
+        alert("Speech synthesis not supported in your browser");
+        return;
+    }
+    
+    if (isSpeaking || !translatedText.textContent.trim()) {
+        return;
+    }
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    const selectedOutputLang = outputLang.value;
-    utterance.lang = selectedOutputLang === 'es' ? 'es-ES' : 'en-US'; // Adjust as needed
+    const utterance = new SpeechSynthesisUtterance(translatedText.textContent);
+    
+    // Set language based on output selection
+    const langCode = outputLang.value === 'es' ? 'es' : 'en-US';
+    utterance.voice = getVoiceForLanguage(langCode);
+    utterance.lang = langCode;
 
-    window.speechSynthesis.speak(utterance);
+    // Event handlers
+    utterance.onstart = () => {
+        isSpeaking = true;
+        setControlsState(true);
+        playBtn.style.opacity = "0.5";
+    };
+
+    utterance.onend = () => {
+        isSpeaking = false;
+        setControlsState(false);
+        playBtn.style.opacity = "1";
+    };
+
+    utterance.onerror = (event) => {
+        console.error('Speech synthesis error:', event);
+        isSpeaking = false;
+        setControlsState(false);
+        playBtn.style.opacity = "1";
+        alert("Error playing translation. Please try again.");
+    };
+
+    // Cancel any ongoing speech
+    synthesis.cancel();
+    
+    // Start speaking
+    synthesis.speak(utterance);
 });
 
+// Ensure voices are loaded (needed for some browsers)
+if (synthesis) {
+    synthesis.onvoiceschanged = () => {
+        synthesis.getVoices();
+    };
+}
+
+// Add cleanup when starting new conversation
 newConvBtn.addEventListener('click', () => {
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+    isSpeaking = false;
+    setButtonsState(false);
+
     conversationHistory = {
         activeSegment: '',
         historicalContext: '',
