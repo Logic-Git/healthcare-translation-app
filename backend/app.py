@@ -12,6 +12,7 @@ CORS(app)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-1.0-pro")
+model2 = genai.GenerativeModel("gemini-1.5-flash")
 
 @app.route('/enhance_transcription', methods=['POST'])
 def enhance_transcription():
@@ -69,7 +70,7 @@ def translate_text():
     )
 
     try:
-        response = model.generate_content(prompt)
+        response = model2.generate_content(prompt)
         return jsonify({"translated_text": response.text.strip()})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

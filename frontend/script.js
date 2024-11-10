@@ -8,6 +8,22 @@ const translatedText = document.getElementById('translated-text');
 const inputLang = document.getElementById('input-lang');
 const outputLang = document.getElementById('output-lang');
 const newConvBtn = document.getElementById('new-conv-btn');
+const loadingNotice = document.getElementById('loading-notice');
+
+// Add state tracking at the top
+let isRecording = false;
+let isProcessing = false;
+let hasPendingWork = false;
+
+function setProcessingState(processing) {
+    // Only allow changing processing state when not recording
+    if (!isRecording) {
+        isProcessing = processing;
+        playBtn.disabled = processing;
+        newConvBtn.disabled = processing;
+        loadingNotice.style.display = processing ? 'block' : 'none';
+    }
+}
 
 // Add to script.js
 function getTranscriptionContext(text) {
@@ -26,7 +42,6 @@ let conversationHistory = {
     pendingEnhancement: false,
     paragraphSpacing: '\n\n'  // Define standard paragraph spacing
 };
-let isRecording = false;
 
 // Initialize Speech Recognition
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -59,16 +74,27 @@ function getContextWindow(text, windowSize) {
     return words.slice(-windowSize).join(' ');
 }
 
-// Start Speech Recognition on button click
+// Update speak button handler
 speakBtn.addEventListener('click', () => {
     if (!isRecording) {
+        // Starting recording
         recognition.start();
         isRecording = true;
         speakBtn.textContent = 'Pause Speaking';
+        // Force processing state true and disable buttons
+        isProcessing = true;
+        playBtn.disabled = true;
+        newConvBtn.disabled = true;
+        loadingNotice.style.display = 'block';
     } else {
+        // Stopping recording
         recognition.stop();
         isRecording = false;
         speakBtn.textContent = 'Start Speaking';
+        // Only remove processing state if no pending work
+        if (!hasPendingWork) {
+            setProcessingState(false);
+        }
     }
     speakBtn.disabled = false;
 });
@@ -113,9 +139,9 @@ recognition.onend = () => {
     }
 };
 
-// Function to enhance transcription using backend
+// Update enhanceTranscription function
 function enhanceTranscription(text, context) {
-    const limitedContext = getTranscriptionContext(context);
+    hasPendingWork = true;
     conversationHistory.pendingEnhancement = true;
 
     fetch('http://localhost:5000/enhance_transcription', {
@@ -123,19 +149,17 @@ function enhanceTranscription(text, context) {
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ text, context: limitedContext })
+        body: JSON.stringify({ text, context: getTranscriptionContext(context) })
     })
     .then(response => response.json())
     .then(data => {
         if (data.enhanced_text) {
-            // Move current segment to history
             if (conversationHistory.historicalContext) {
                 conversationHistory.historicalContext += '\n\n';
             }
             conversationHistory.historicalContext += data.enhanced_text;
             conversationHistory.activeSegment = '';
             conversationHistory.pendingEnhancement = false;
-            
             updateDisplay();
             translateText(data.enhanced_text);
         }
@@ -143,15 +167,16 @@ function enhanceTranscription(text, context) {
     .catch(error => {
         console.error('Error:', error);
         conversationHistory.pendingEnhancement = false;
+        hasPendingWork = false;
+        if (!isRecording) {
+            setProcessingState(false);
+        }
     });
 }
 
-// Function to translate text using backend
+// Update translateText function
 function translateText(text) {
-    const selectedOutputLang = outputLang.value;
-    const translationContext = getTranslationContext(
-        conversationHistory.translated.join('\n\n')
-    );
+    hasPendingWork = true;
 
     fetch('http://localhost:5000/translate_text', {
         method: 'POST',
@@ -160,8 +185,8 @@ function translateText(text) {
         },
         body: JSON.stringify({ 
             text: text, 
-            context: translationContext,
-            target_language: selectedOutputLang 
+            context: getTranslationContext(conversationHistory.translated.join('\n\n')),
+            target_language: outputLang.value 
         })
     })
     .then(response => response.json())
@@ -169,9 +194,19 @@ function translateText(text) {
         if (data.translated_text) {
             conversationHistory.translated.push(data.translated_text);
             updateDisplay();
+            hasPendingWork = false;
+            if (!isRecording) {
+                setProcessingState(false);
+            }
         }
     })
-    .catch(error => console.error('Error:', error));
+    .catch(error => {
+        console.error('Error:', error);
+        hasPendingWork = false;
+        if (!isRecording) {
+            setProcessingState(false);
+        }
+    });
 }
 
 // Function to play translated text as audio
