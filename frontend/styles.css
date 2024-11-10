@@ -1,0 +1,104 @@
+/* frontend/styles.css */
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f2f2f2;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 800px;
+    margin: auto;
+    padding: 20px;
+    background-color: #fff;
+    min-height: 100vh;
+}
+
+h1 {
+    text-align: center;
+    color: #333;
+}
+
+.controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.controls label, .controls select, .controls button {
+    margin: 5px;
+    padding: 10px;
+    font-size: 16px;
+}
+
+.controls button {
+    width: 200px;
+    cursor: pointer;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+}
+
+.controls button:hover {
+    background-color: #45a049;
+}
+
+.transcripts {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.transcript {
+    background-color: #e7e7e7;
+    padding: 15px;
+    border-radius: 5px;
+}
+
+.transcript h2 {
+    margin-top: 0;
+}
+
+.transcript-content {
+    height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    padding: 10px;
+    line-height: 1.5;
+}
+
+/* Add more spacing between speaker turns */
+.transcript-content p {
+    margin-bottom: 1.5em;
+    line-height: 1.5;
+}
+
+#new-conv-btn {
+    margin-bottom: 15px;
+    background-color: #ff4444;
+}
+
+.pending {
+    color: #666;
+    font-style: italic;
+    display: block;
+    margin-top: 1.5em;
+}
+
+@media (min-width: 600px) {
+    .controls {
+        flex-direction: row;
+        justify-content: center;
+    }
+
+    .transcripts {
+        flex-direction: row;
+    }
+
+    .transcript {
+        width: 45%;
+    }
+}

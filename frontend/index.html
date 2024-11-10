@@ -1,0 +1,49 @@
+<!-- frontend/index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Healthcare Translation App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Healthcare Translation App</h1>
+        
+        <div class="controls">
+            <button id="new-conv-btn">New Conversation</button>
+            <label for="input-lang">Input Language:</label>
+            <select id="input-lang">
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <!-- Add more languages as needed -->
+            </select>
+
+            <label for="output-lang">Output Language:</label>
+            <select id="output-lang">
+                <option value="es">Spanish</option>
+                <option value="en">English</option>
+                <!-- Add more languages as needed -->
+            </select>
+
+            <button id="speak-btn">Start Speaking</button>
+            <button id="play-btn">Speak Translation</button>
+        </div>
+
+        <div class="transcripts">
+            <div class="transcript">
+                <h2>Original Transcript</h2>
+                <div id="original-text" class="transcript-content"></div>
+            </div>
+            <div class="transcript">
+                <h2>Translated Transcript</h2>
+                <div id="translated-text" class="transcript-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
