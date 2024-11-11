@@ -3,16 +3,39 @@ import os
 import google.generativeai as genai
 from flask_cors import CORS
 from dotenv import load_dotenv
+from google.cloud import texttospeech
+from google.oauth2 import service_account
+import base64
+import json
 
 load_dotenv()
 app = Flask(__name__)
-CORS(app)
+# Replace the simple CORS() with specific configuration
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+            "https://nao-medical-transcriber.onrender.com"  # This needs to be updated
+        ],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
 # Gemini API configuration
+# backend/app.py
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-1.0-pro")
 model2 = genai.GenerativeModel("gemini-1.5-flash")
+
+# Google Cloud TTS configuration
+credentials = service_account.Credentials.from_service_account_info(
+    # Load credentials from environment variable to support deployment
+    json.loads(os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON', '{}'))
+)
+tts_client = texttospeech.TextToSpeechClient(credentials=credentials)
 
 @app.route('/enhance_transcription', methods=['POST'])
 def enhance_transcription():
@@ -51,6 +74,7 @@ def enhance_transcription():
         response = model.generate_content(prompt)
         return jsonify({"enhanced_text": response.text.strip()})
     except Exception as e:
+        print(f"Enhancement error: {str(e)}")  # Add detailed logging
         return jsonify({"error": str(e)}), 500
 
 @app.route('/translate_text', methods=['POST'])
@@ -74,6 +98,44 @@ def translate_text():
         return jsonify({"translated_text": response.text.strip()})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/synthesize_speech', methods=['POST'])
+def synthesize_speech():
+    try:
+        data = request.get_json()
+        text = data.get('text', '')
+        language_code = data.get('language_code', 'en-US')
+
+        input_text = texttospeech.SynthesisInput(text=text)
+        
+        voice = texttospeech.VoiceSelectionParams(
+            language_code=language_code,
+            ssml_gender=texttospeech.SsmlVoiceGender.NEUTRAL
+        )
+
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.MP3
+        )
+
+        response = tts_client.synthesize_speech(
+            input=input_text,
+            voice=voice,
+            audio_config=audio_config
+        )
+
+        # Convert audio content to base64
+        audio_base64 = base64.b64encode(response.audio_content).decode('utf-8')
+        
+        return jsonify({
+            'audio': audio_base64,
+            'success': True
+        })
+
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'success': False
+        }), 500
 
 # Add port configuration
 if __name__ == '__main__':

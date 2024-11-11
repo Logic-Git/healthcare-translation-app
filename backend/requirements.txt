@@ -4,3 +4,4 @@ requests
 python-dotenv
 gunicorn
 google-generativeai
+google-cloud-texttospeech
