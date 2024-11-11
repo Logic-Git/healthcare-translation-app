@@ -29,7 +29,8 @@ function setControlsState(disabled) {
 // Function to check voice availability
 function getVoiceForLanguage(langCode) {
     const voices = synthesis.getVoices();
-    return voices.find(voice => voice.lang.startsWith(langCode)) || voices[0];
+    const voice = voices.find(voice => voice.lang.startsWith(langCode));
+    return voice || null;
 }
 
 function setProcessingState(processing) {
@@ -107,22 +108,23 @@ speakBtn.addEventListener('click', () => {
         recognition.start();
         isRecording = true;
         speakBtn.textContent = 'Pause Speaking';
-        // Force processing state true and disable buttons
-        isProcessing = true;
-        playBtn.disabled = true;
-        newConvBtn.disabled = true;
+        // Disable all controls except speak button
+        setControlsState(true);
+        speakBtn.disabled = false;
         loadingNotice.style.display = 'block';
+        isProcessing = true;
     } else {
         // Stopping recording
         recognition.stop();
         isRecording = false;
         speakBtn.textContent = 'Start Speaking';
-        // Only remove processing state if no pending work
+        // Only enable controls if no pending work
         if (!hasPendingWork) {
-            setProcessingState(false);
+            setControlsState(false);
+            isProcessing = false;
+            loadingNotice.style.display = 'none';
         }
     }
-    speakBtn.disabled = false;
 });
 
 // Update recognition handler
@@ -165,12 +167,17 @@ recognition.onend = () => {
     }
 };
 
+// Replace all instances of http://localhost:5000 with
+const API_URL = window.location.hostname === 'localhost' 
+    ? 'http://localhost:5000'
+    : 'https://healthcare-translation-backend.onrender.com';
+
 // Update enhanceTranscription function
 function enhanceTranscription(text, context) {
     hasPendingWork = true;
     conversationHistory.pendingEnhancement = true;
 
-    fetch('http://localhost:5000/enhance_transcription', {
+    fetch(`${API_URL}/enhance_transcription`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -204,7 +211,7 @@ function enhanceTranscription(text, context) {
 function translateText(text) {
     hasPendingWork = true;
 
-    fetch('http://localhost:5000/translate_text', {
+    fetch(`${API_URL}/translate_text`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -235,51 +242,97 @@ function translateText(text) {
     });
 }
 
+// Ensure voices are loaded before proceeding
+function loadVoices() {
+    return new Promise((resolve) => {
+        let voices = synthesis.getVoices();
+        if (voices.length !== 0) {
+            resolve(voices);
+        } else {
+            synthesis.onvoiceschanged = () => {
+                voices = synthesis.getVoices();
+                resolve(voices);
+            };
+        }
+    });
+}
+
 // Updated play button handler
-playBtn.addEventListener('click', () => {
-    // Guard clauses
+playBtn.addEventListener('click', async () => {
+    // Disable controls immediately
+    setControlsState(true);
+    playBtn.style.opacity = "0.5";
+
+    // Guard clauses with proper cleanup
     if (!synthesis) {
-        alert("Speech synthesis not supported in your browser");
-        return;
-    }
-    
-    if (isSpeaking || !translatedText.textContent.trim()) {
-        return;
-    }
-
-    const utterance = new SpeechSynthesisUtterance(translatedText.textContent);
-    
-    // Set language based on output selection
-    const langCode = outputLang.value === 'es' ? 'es' : 'en-US';
-    utterance.voice = getVoiceForLanguage(langCode);
-    utterance.lang = langCode;
-
-    // Event handlers
-    utterance.onstart = () => {
-        isSpeaking = true;
-        setControlsState(true);
-        playBtn.style.opacity = "0.5";
-    };
-
-    utterance.onend = () => {
-        isSpeaking = false;
+        alert("Speech synthesis is not supported in your browser.");
         setControlsState(false);
         playBtn.style.opacity = "1";
-    };
+        return;
+    }
 
-    utterance.onerror = (event) => {
-        console.error('Speech synthesis error:', event);
-        isSpeaking = false;
+    if (!translatedText.textContent.trim()) {
         setControlsState(false);
         playBtn.style.opacity = "1";
+        return;
+    }
+
+    if (isSpeaking) {
+        setControlsState(false);
+        playBtn.style.opacity = "1";
+        return;
+    }
+
+    try {
+        // Wait for voices to load
+        await loadVoices();
+
+        const utterance = new SpeechSynthesisUtterance(translatedText.textContent);
+
+        // Set language based on output selection
+        const langCode = outputLang.value === 'es' ? 'es' : 'en-US';
+        utterance.voice = getVoiceForLanguage(langCode);
+        utterance.lang = langCode;
+
+        // Handle case when no voice is available
+        if (!utterance.voice) {
+            alert(`No voice available for language code: ${langCode}`);
+            setControlsState(false);
+            playBtn.style.opacity = "1";
+            return;
+        }
+
+        // Event handlers
+        utterance.onstart = () => {
+            isSpeaking = true;
+        };
+
+        utterance.onend = () => {
+            isSpeaking = false;
+            setControlsState(false);
+            playBtn.style.opacity = "1";
+        };
+
+        utterance.onerror = (event) => {
+            console.error('Speech synthesis error:', event);
+            isSpeaking = false;
+            alert("Error playing translation. Please try again.");
+            setControlsState(false);
+            playBtn.style.opacity = "1";
+        };
+
+        // Cancel any ongoing speech
+        synthesis.cancel();
+
+        // Start speaking
+        synthesis.speak(utterance);
+    } catch (error) {
+        console.error('Speech synthesis error:', error);
         alert("Error playing translation. Please try again.");
-    };
-
-    // Cancel any ongoing speech
-    synthesis.cancel();
-    
-    // Start speaking
-    synthesis.speak(utterance);
+        isSpeaking = false;
+        setControlsState(false);
+        playBtn.style.opacity = "1";
+    }
 });
 
 // Ensure voices are loaded (needed for some browsers)
