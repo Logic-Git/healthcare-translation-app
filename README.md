@@ -24,8 +24,7 @@ A web-based prototype that enables real-time, multilingual translation between p
 
 ### Prerequisites
 
-- Python 3.x
-- Node.js and npm (optional, if additional front-end tooling is used)
+- Python 3.12
 
 ### Backend Setup
 
